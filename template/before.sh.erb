@@ -29,4 +29,9 @@ export STUDIO_ALLOC_PORTS=1
 
 # OOD proxies the session at /node/<host>/<port>/ — Studio renders its proxy
 # locations for exactly that prefix and announces it via X-Forwarded-Prefix.
-export STUDIO_URL_PREFIX="/node/$(hostname)/${port}"
+# Use OOD's $host (set by the cluster's set_host before this file is sourced),
+# not $(hostname): on Unity $host is the FQDN, the portal only proxies
+# /node/<FQDN>/..., and view.html.erb builds the Connect URL from $host — a
+# mismatch makes the gate 403 the /auth request. The FQDN's dots need the
+# patched entrypoint in script.sh.erb.
+export STUDIO_URL_PREFIX="/node/${host}/${port}"

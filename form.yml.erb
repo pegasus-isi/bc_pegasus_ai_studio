@@ -1,41 +1,26 @@
 ---
-cluster:
-  - "scitech"
+title: "PegasusAI"
+cluster: "unity"
 
 attributes:
+<%= File.read('/var/www/ood/apps/common/common_attributes.yml') %>
+  image_file:
+    label: "Pegasus version"
+    widget: select
+    options:
+      - ["v6.0", "/modules/opt/linux-ubuntu24.04-x86_64/pegasusai/studio-webapp-6.0.sif"]
 
-  bc_num_hours:
-    widget: number_field
-    label: "Hours"
-    value: 4
-    min: 1
-    max: 12
-    step: 1
-
-  num_cores:
-    widget: number_field
-    label: "Cores"
-    value: 2
-    min: 1
-    max: 4
-    step: 1
-
-  memory_gb:
-    widget: number_field
-    label: "Memory (GB)"
-    value: 8
-    min: 4
-    max: 14
-    step: 2
-    help: |
-      Studio itself needs roughly 2 GB; the rest is headroom for your work.
-      Only one Studio session per user runs at a time -- reconnect to a running
-      one from *My Interactive Sessions* rather than launching a second.
-
-# NB: there is no "static" widget in OnDemand. Standing text belongs in
-# manifest.yml's description or in a field's `help`; a `widget: static`
-# attribute raises `undefined method 'static'` and the whole form 500s.
 form:
-  - bc_num_hours
-  - num_cores
-  - memory_gb
+  - unity_blurb
+  # standard
+  - _partition
+  - time_limit
+  - cpus_per_task
+  - mem_gigs
+  # app specific
+  - image_file
+  - debug
+  # standard tweaks
+  - short_qos
+  - bc_email_on_started
+  - extra_slurm_args

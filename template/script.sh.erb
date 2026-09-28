@@ -1,97 +1,50 @@
-#!/usr/bin/env bash
+#!/bin/env -S /bin/bash --noprofile --norc
+. /etc/profile
+set -exuo pipefail
+trap 's=$?; echo "$0: Error on line "$LINENO": $BASH_COMMAND"; exit $s' ERR
 
-set -euo pipefail
-
-set -a
-<%- site_env = "/etc/ood/config/apps/pegasus-studio/site.env" -%>
-<%- if File.exist?(site_env) -%>
-<%= File.read(site_env) %>
-<%- else -%>
-# (no site.env found on the portal host at render time)
-<%- end -%>
-set +a
-
-# Also source it at run time when present — a linux_host/linux_systemd session
-# on the portal node itself can pick up edits without re-rendering.
-if [ -f <%= site_env %> ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . <%= site_env %>
-    set +a
-fi
+module purge
+module load apptainer/latest
+module list
 
 echo "Starting PegasusAI Studio on $(hostname) port ${STUDIO_PORT}"
-echo "  dist:   ${STUDIO_DIST}"
+#echo "  dist:   ${STUDIO_DIST}"
 echo "  prefix: ${STUDIO_URL_PREFIX:-<none>}"
 
+PEGASUSAI_SERVER_IMAGE="<%= context.image_file %>"
 
-# Set up singularity so that it can use Slurm
+<%- if context.debug=="1" -%>
+printenv > environment
+<%- end -%>
 
-# Initialize an array to hold our bind paths
-BIND_PATHS=()
+<%#- munge, slurm bind mounts are to enable slurm client commands like `srun` in Rstudio shell -%>
+apptainer_bindpath_parts=(
+    /run/slurm
+    /etc/slurm
+    /etc/passwd
+    /etc/group
+    /var/spool/slurm/slurmd/conf-cache/slurm.conf
+    /etc/nsswitch.conf
+    "$TMP:/tmp"
+    "$PWD:/ood-session"
+    "$HOME"
+    "$APPTAINER_BINDPATH"
+)
+<%#- for some reason, adding $HOME to bind path fixes a mkdir error 17 "file exists" on ~/.cache/rstudio which only happens for certain users -%>
+APPTAINER_BINDPATH="$(IFS=','; echo "${apptainer_bindpath_parts[*]}")"
+export APPTAINER_BINDPATH
 
-# Helper function to append to the bind list if the path exists
-add_bind() {
-    if [ -e "$1" ]; then
-        BIND_PATHS+=("$1")
-    fi
-}
+# Studio's entrypoint rejects '.' in STUDIO_URL_PREFIX, but the Unity portal
+# only proxies /node/<FQDN>/<port>. Run a copy of it with '.' allowed (dots are
+# safe everywhere the prefix is used). The grep fails the job loudly if a new
+# image changes that line and the patch no longer applies.
+studio_entrypoint="$PWD/studio-entrypoint.sh"
+apptainer exec "$PEGASUSAI_SERVER_IMAGE" cat /usr/local/bin/entrypoint.sh \
+    | sed '\|\*\[!A-Za-z0-9_/-\]\*)|s|0-9_/-|0-9_./-|' > "$studio_entrypoint"
+grep -q 'A-Za-z0-9_\./-\]\*)' "$studio_entrypoint"
+chmod +x "$studio_entrypoint"
+APPTAINER_BINDPATH+=",$studio_entrypoint:/usr/local/bin/entrypoint.sh:ro"
 
-# 1. Core Configs and Sockets
-add_bind "/etc/slurm"
-add_bind "/var/run/munge"
-
-# 1.5 Allow container to resolve host users (SlurmUser, Munge, etc.)
-add_bind "/etc/passwd"
-add_bind "/etc/group"
-
-# If your cluster uses SSSD/LDAP for user management, you need these too:
-add_bind "/etc/nsswitch.conf"
-add_bind "/var/lib/sss"
-
-# 2. Find and add Slurm Binaries
-for bin in sbatch srun squeue sinfo scontrol sacct; do
-    bin_path=$(which $bin 2>/dev/null)
-    if [ -n "$bin_path" ]; then
-        add_bind "$bin_path"
-    fi
-done
-
-# 3. Dynamically discover and add Libraries (libslurm, libmunge)
-if SBATCH_BIN=$(which sbatch 2>/dev/null); then
-    # Use ldd to find the directories containing slurm/munge libraries
-    LIB_DIRS=$(ldd "$SBATCH_BIN" | awk '{print $3}' | grep -E 'libslurm|libmunge' | xargs -n1 dirname | sort -u)
-
-    for dir in $LIB_DIRS; do
-        # Use globs to catch the libraries AND their symlink targets
-        # (e.g., catching .so.36 and .so.36.0.0 together)
-        for lib in "$dir"/libslurm*.so* "$dir"/libmunge*.so*; do
-            add_bind "$lib"
-        done
-    done
-fi
-
-# 4. Slurm Plugins Directory (loaded at runtime, not visible to ldd)
-# Check common locations for the plugin libraries (like jobacct_gather)
-if [ -d "/usr/lib64/slurm" ]; then
-    add_bind "/usr/lib64/slurm"
-elif [ -d "/usr/lib/slurm" ]; then
-    add_bind "/usr/lib/slurm"
-fi
-
-# 5. Join the array with commas to create the bind string
-BIND_STRING=$(IFS=,; echo "${BIND_PATHS[*]}")
-
-# Export for both Singularity and Apptainer
-export SINGULARITY_BIND="$BIND_STRING"
-export APPTAINER_BIND="$BIND_STRING"
-
-echo "SINGULARITY_BIND=$SINGULARITY_BIND"
-
-# Download the container
 mkdir -p $HOME/.studio
-curl -o $HOME/.studio/webapp.sif https://download.pegasus.isi.edu/ondemand/6.0/studio-webapp-6.0.sif
 
-singularity run $HOME/.studio/webapp.sif
-
-
+apptainer run "$PEGASUSAI_SERVER_IMAGE"

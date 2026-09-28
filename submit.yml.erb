@@ -1,8 +1,10 @@
 ---
 batch_connect:
-  template: "basic"
+  template: basic
+  conn_params:
+    - port
+    - password
+    - csrf_token
 script:
   native:
-    - "--partition=debug"
-    - "--cpus-per-task=<%= num_cores %>"
-    - "--mem=<%= memory_gb %>G"
+<%= ERB.new(File.read("/var/www/ood/apps/common/submit-script-native.yml.erb"), trim_mode: "-", eoutvar: "_sub01").result(binding) -%>
