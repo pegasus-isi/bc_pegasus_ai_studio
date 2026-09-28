@@ -1,0 +1,13 @@
+title: "Pegasus AI Studio"
+description: "Agent aided scientific workflow management system"
+software: "Pegasus"
+app_type: "batch-connect-basic"
+implementation_tags:
+  - apptainer
+  - batch connect
+  - containerized
+maintainer:
+  name: "Pegasus User Support"
+  support_url: "https://pegasus.isi.edu/contact/"
+website: "https://pegasus.isi.edu"
+docs: "https://pegasus.isi.edu/documentation/"
