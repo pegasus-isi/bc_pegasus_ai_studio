@@ -42,8 +42,11 @@ git clone https://github.com/pegasus-isi/bc_pegasus_ai_studio.git
 If Apptainer/Singularity is not in the PATH on your compute nodes, update
 `template/script.sh.erb` so that Apptainer/Singularity is loaded.
 
-No need to install any other software - the container is downloaded when the job is started.
+Download one or more Singularity images, and install them in a shared directory:
 
+[https://download.pegasus.isi.edu/ondemand/6.0/]
+
+Update the image path in `form.yml.erb`
 
 ## Known Limitations
 
