@@ -35,8 +35,21 @@ attributes:
     step: 2
     help: |
       Studio itself needs roughly 2 GB; the rest is headroom for your work.
-      Only one Studio session per user runs at a time -- reconnect to a running
-      one from *My Interactive Sessions* rather than launching a second.
+
+  studio_home:
+    widget: text_field
+    label: "Studio directory"
+    value: ""
+    help: |
+      Where Studio keeps your workflows, its settings and the configuration of
+      its AI tools. Studio uses it as its home directory, so it never writes
+      into your real home. Leave empty for `~/pegasus-studio`. It must be on
+      storage the HTCondor submit host can also see, and it cannot be your
+      home directory itself.
+
+      Only one session per Studio directory runs at a time -- reconnect to a
+      running one from *My Interactive Sessions* rather than launching a
+      second.
 
 # NB: there is no "static" widget in OnDemand. Standing text belongs in
 # manifest.yml's description or in a field's `help`; a `widget: static`
@@ -45,3 +58,4 @@ form:
   - bc_num_hours
   - num_cores
   - memory_gb
+  - studio_home

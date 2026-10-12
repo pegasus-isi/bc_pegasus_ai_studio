@@ -48,6 +48,36 @@ Download one or more Singularity images, and install them in a shared directory:
 
 Update the image path in `form.yml.erb`
 
+## Where Studio keeps its files
+
+Studio runs with a **Studio directory** as its home (`~/pegasus-studio` unless
+the user picks another on the launch form), never the user's real home.
+Everything Studio writes is `$HOME`-relative: its database, workflows,
+`~/.pegasusrc`, and the configuration it generates for Codex, Claude Code and
+OpenCode. Running it in the real home would overwrite a user's own setup of
+those tools.
+
+- `template/studio-home.sh` refuses the real home itself, any directory
+  containing it, symlinks back to either, and `.`/`..` components.
+- `.condor/tokens.d` and `.gitconfig` are symlinked in from the real home when
+  present (and when nothing is already there), so HTCondor submission and git
+  identity keep working. Sites can change the list with `STUDIO_HOME_INHERIT`
+  in `template/script.sh.erb`, and the default directory with
+  `STUDIO_HOME_DEFAULT`.
+- The real home is still bind-mounted, so terminals can reach existing data.
+- One session per Studio directory runs at a time.
+
+The Studio directory must be on storage the HTCondor submit host also mounts.
+Studio's planning and DAGMan read the workflow's submit directory from there.
+The default under an NFS home works; node-local scratch does not.
+
+**Upgrading from 0.0.1:** earlier sessions wrote Studio's state straight into
+the home directory (`~/.studio`, `~/workflows`, `~/data`, `~/.pegasusrc`, and
+so on). A new session starts with an empty Studio directory. Move `~/workflows`
+and `~/data` into it to keep existing projects.
+
+Run the tests with `bash tests/test-studio-home.sh`.
+
 ## Known Limitations
 
 - Only works on RHEL/Rocky/... 9 or greater, at this point
