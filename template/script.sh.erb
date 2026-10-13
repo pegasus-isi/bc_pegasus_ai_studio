@@ -13,7 +13,9 @@ echo "  prefix: ${STUDIO_URL_PREFIX:-<none>}"
 
 PEGASUSAI_SERVER_IMAGE="<%= context.image_file %>"
 
-<%- if context.debug=="1" -%>
+<%#- `debug` is not a form attribute, so it is absent from the context unless a
+     site adds one; asking for it directly is `undefined method` at submit. -%>
+<%- if context.respond_to?(:debug) && context.debug == "1" -%>
 printenv > environment
 <%- end -%>
 

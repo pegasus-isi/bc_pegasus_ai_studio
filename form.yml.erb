@@ -54,7 +54,11 @@ attributes:
 # NB: there is no "static" widget in OnDemand. Standing text belongs in
 # manifest.yml's description or in a field's `help`; a `widget: static`
 # attribute raises `undefined method 'static'` and the whole form 500s.
+# Every attribute script.sh.erb reads must be listed here: OOD builds the
+# session context from this list, not from `attributes`, so an attribute
+# defined above but missing here is `undefined method` at submit time.
 form:
+  - image_file
   - bc_num_hours
   - num_cores
   - memory_gb

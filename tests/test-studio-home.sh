@@ -76,10 +76,16 @@ empty="$work/empty"; prepare "$empty" "$real" ""
 if command -v ruby >/dev/null 2>&1; then
     for value in "" "~/my studio" "/scratch/u/it's"; do
         out="$work/script.sh"
-        if ruby -rerb -rostruct -e '
-            context = OpenStruct.new(studio_home: ARGV[1], image_file: "/x.sif", debug: "0")
+        # The context holds only what form.yml.erb lists under `form:`, as
+        # OOD builds it: an attribute that is defined but not listed is
+        # `undefined method` at submit time (image_file was, on 0.0.1).
+        if ruby -rerb -ryaml -e '
+            form = YAML.safe_load(ERB.new(File.read(ARGV[3]), trim_mode: "-").result)
+            vals = { "studio_home" => ARGV[1], "image_file" => "/x.sif" }
+            Ctx = Struct.new(*form.fetch("form").map(&:to_sym))
+            context = Ctx.new(*form["form"].map { |k| vals.fetch(k, "1") })
             File.write(ARGV[2], ERB.new(File.read(ARGV[0]), trim_mode: "-").result(binding))
-        ' "$here/template/script.sh.erb" "$value" "$out" && bash -n "$out" \
+        ' "$here/template/script.sh.erb" "$value" "$out" "$here/form.yml.erb" && bash -n "$out" \
            && grep -q -- '--home "$STUDIO_HOME"' "$out"; then ok
         else bad "script.sh.erb with studio_home='$value' did not render to valid bash"; fi
     done
