@@ -78,6 +78,41 @@ and `~/data` into it to keep existing projects.
 
 Run the tests with `bash tests/test-studio-home.sh`.
 
+## Site settings
+
+An administrator configures every session through one file on the portal,
+`/etc/ood/config/apps/bc_pegasus_ai_studio/site.env`. See
+[`examples/site.env`](examples/site.env). It is read when the dashboard renders
+the job script, so compute nodes need no copy. It sets:
+
+- **Where workflows run.** `STUDIO_SITE_CATALOG_FILE` is a Pegasus site catalog
+  for this cluster. It replaces Studio's default catalog, so site `compute`
+  means this cluster's resources. Alternatively, `STUDIO_SITE_CATALOG` names a
+  catalog published in
+  [pegasushub/pegasus-site-catalogs](https://github.com/pegasushub/pegasus-site-catalogs).
+- **The AI assistant.** `STUDIO_LLM_GATEWAY_URL` / `STUDIO_LLM_DEFAULT_MODEL`
+  name a gateway the site runs. Without one, users add their own provider and
+  key in Settings. Never put a shared API key here: every user can read their
+  own session's environment.
+- **The HTCondor access point.** `_CONDOR_SCHEDD_HOST` / `_CONDOR_COLLECTOR_HOST`,
+  as fully qualified names, when sessions do not run on it.
+
+## Workflows on Slurm
+
+Studio submits workflows to HTCondor, so a Slurm cluster needs an HTCondor
+access point whose jobs reach Slurm. The simplest route is HTCondor's BLAHP:
+the catalog's `compute` site uses `grid_resource: batch slurm` and
+`pegasus.style: glite`, and each job becomes an `sbatch` run as the user (see
+`unity.yml` in pegasus-site-catalogs). The access point needs:
+
+- the Slurm client (`sbatch`, `squeue`, munge) working for ordinary users;
+- BLAHP, which ships with HTCondor; check `slurm` in `supported_lrms` and
+  `slurm_binpath` in `/etc/blah.config`;
+- a filesystem shared with the compute nodes for the Studio directory.
+
+Nothing in Studio needs more than a user has: it submits, queries and
+reschedules its own jobs, and reads the catalog.
+
 ## Known Limitations
 
 - Only works on RHEL/Rocky/... 9 or greater, at this point

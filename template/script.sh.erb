@@ -13,6 +13,25 @@ echo "  prefix: ${STUDIO_URL_PREFIX:-<none>}"
 
 PEGASUSAI_SERVER_IMAGE="<%= context.image_file %>"
 
+# ---- Site settings from the administrator ----
+# /etc/ood/config/apps/bc_pegasus_ai_studio/site.env, BAKED IN when the
+# dashboard renders this script on the portal rather than sourced when it
+# runs: the job runs on a compute node, which has no /etc/ood at all, so a
+# runtime `source` silently finds nothing. Plain shell assignments, exported
+# into the session (Apptainer passes the environment through). What Studio
+# reads from it is documented in README.md and examples/site.env: the site
+# catalog for "compute" (STUDIO_SITE_CATALOG_FILE), an LLM gateway
+# (STUDIO_LLM_GATEWAY_URL; never a shared key, users add their own), and the
+# HTCondor access point (_CONDOR_SCHEDD_HOST).
+<%- site_env = "/etc/ood/config/apps/bc_pegasus_ai_studio/site.env" -%>
+set -a
+<%- if File.readable?(site_env) -%>
+<%= File.read(site_env) %>
+<%- else -%>
+# (no <%= site_env %> on the portal when this was rendered)
+<%- end -%>
+set +a
+
 <%#- `debug` is not a form attribute, so it is absent from the context unless a
      site adds one; asking for it directly is `undefined method` at submit. -%>
 <%- if context.respond_to?(:debug) && context.debug == "1" -%>
