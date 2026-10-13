@@ -13,7 +13,28 @@ echo "  prefix: ${STUDIO_URL_PREFIX:-<none>}"
 
 PEGASUSAI_SERVER_IMAGE="<%= context.image_file %>"
 
-<%- if context.debug=="1" -%>
+# ---- Site settings from the administrator ----
+# /etc/ood/config/apps/bc_pegasus_ai_studio/site.env, BAKED IN when the
+# dashboard renders this script on the portal rather than sourced when it
+# runs: the job runs on a compute node, which has no /etc/ood at all, so a
+# runtime `source` silently finds nothing. Plain shell assignments, exported
+# into the session (Apptainer passes the environment through). What Studio
+# reads from it is documented in README.md and examples/site.env: the site
+# catalog for "compute" (STUDIO_SITE_CATALOG_FILE), an LLM gateway
+# (STUDIO_LLM_GATEWAY_URL; never a shared key, users add their own), and the
+# HTCondor access point (_CONDOR_SCHEDD_HOST).
+<%- site_env = "/etc/ood/config/apps/bc_pegasus_ai_studio/site.env" -%>
+set -a
+<%- if File.readable?(site_env) -%>
+<%= File.read(site_env) %>
+<%- else -%>
+# (no <%= site_env %> on the portal when this was rendered)
+<%- end -%>
+set +a
+
+<%#- `debug` is not a form attribute, so it is absent from the context unless a
+     site adds one; asking for it directly is `undefined method` at submit. -%>
+<%- if context.respond_to?(:debug) && context.debug == "1" -%>
 printenv > environment
 <%- end -%>
 
@@ -45,6 +66,35 @@ grep -q 'A-Za-z0-9_\./-\]\*)' "$studio_entrypoint"
 chmod +x "$studio_entrypoint"
 APPTAINER_BINDPATH+=",$studio_entrypoint:/usr/local/bin/entrypoint.sh:ro"
 
-mkdir -p $HOME/.studio
+# ---- Studio's own home (issue #1) ----
+# Everything Studio writes is $HOME-relative: its database, ~/.pegasusrc, the
+# generated CLAUDE.md/AGENTS.md, and the codex/opencode/claude configs its
+# knowledge adapters write. With the real home as $HOME, a first launch
+# overwrote the user's own setup of those tools. --home below gives Studio a
+# directory of its own instead; studio-home.sh refuses the real home, anything
+# containing it, and '.'/'..' tricks, and links credentials in from the real
+# home so HTCondor submission and git identity keep working. The real home
+# stays in APPTAINER_BINDPATH above, so terminals still reach existing data.
+<%- require "shellwords" -%>
+. "$(dirname "${BASH_SOURCE[0]}")/studio-home.sh"
+REAL_HOME="$HOME"
+STUDIO_HOME="$(studio_home_resolve <%= context.studio_home.to_s.strip.shellescape %> \
+    "${STUDIO_HOME_DEFAULT:-$REAL_HOME/pegasus-studio}" "$REAL_HOME")"
+studio_home_prepare "$STUDIO_HOME" "$REAL_HOME" \
+    "${STUDIO_HOME_INHERIT-.condor/tokens.d .gitconfig}"
+# Exported so the entrypoint sees it too: it re-asserts HOME from it if a
+# launch ever drops --home.
+export STUDIO_HOME
+echo "  home:   ${STUDIO_HOME}"
 
-apptainer run "$PEGASUSAI_SERVER_IMAGE"
+# One session per Studio directory: studio.db is SQLite and the stack assumes
+# it owns its state.
+exec 9>"$STUDIO_HOME/.studio-session.lock"
+if ! flock -n 9; then
+    echo "A Pegasus AI Studio session is already using $STUDIO_HOME." >&2
+    echo "Reconnect to it from 'My Interactive Sessions', or choose another" \
+         "Studio directory." >&2
+    exit 1
+fi
+
+apptainer run --home "$STUDIO_HOME" "$PEGASUSAI_SERVER_IMAGE"
